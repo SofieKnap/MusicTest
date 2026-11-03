@@ -9,7 +9,15 @@ Testene i `MusicTest/UnitTest1.cs` tester den nye frontend i Chrome:
 - Musikken kan sorteres med de nyeste udgivelser først.
 - Detaljevinduet viser titel, kunstner, år og varighed og kan lukkes.
 
-Det giver otte testkørsler i alt.
+De udvidede tests kontrollerer også:
+
+- Alle fire sorteringer og kunstnerknapperne.
+- Nulstilling af søgning og navigation mellem samling og favoritter.
+- En tom favoritliste, favoritter fra detaljevinduet og lukning med Escape.
+- En API-fejl og knappen Prøv igen, når forbindelsen er tilbage.
+- Opstart med ugyldige favoritter i browserens localStorage.
+
+Det giver 19 testkørsler i alt. API-fejlen fremkaldes med Chromes netværksværktøjer i én isoleret testbrowser. Det ændrer ikke Azure eller brugerens normale browser.
 
 ## Kør testene
 
