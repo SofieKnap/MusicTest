@@ -122,7 +122,7 @@ namespace MusicTest
 
             // Act
             browser.FindElement(By.CssSelector("[aria-label='Vis detaljer om lowkey']")).Click();
-            wait.Until(driver => driver.FindElement(By.CssSelector("dialog")).Displayed);
+            wait.Until(driver => driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
 
             // Assert: Dialogen skal vise oplysninger om det valgte nummer.
             Assert.Equal("lowkey", browser.FindElement(By.Id("dialog-title")).Text);
@@ -133,8 +133,8 @@ namespace MusicTest
 
             // Act og Assert: Luk dialogen, og kontrollér at den er skjult.
             browser.FindElement(By.CssSelector("[aria-label='Luk detaljer']")).Click();
-            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog")).Displayed);
-            Assert.False(browser.FindElement(By.CssSelector("dialog")).Displayed);
+            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
+            Assert.False(browser.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
         }
 
         [Theory]
@@ -241,10 +241,10 @@ namespace MusicTest
 
             // Act
             browser.FindElement(By.CssSelector("[aria-label='Vis detaljer om lowkey']")).Click();
-            wait.Until(driver => driver.FindElement(By.CssSelector("dialog")).Displayed);
-            browser.FindElement(By.CssSelector("dialog .primary-button")).Click();
+            wait.Until(driver => driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
+            browser.FindElement(By.CssSelector(".dialog-info .primary-button")).Click();
             browser.FindElement(By.CssSelector("[aria-label='Luk detaljer']")).Click();
-            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog")).Displayed);
+            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
 
             // Assert
             Assert.Equal("1", browser.FindElement(By.CssSelector(".nav-count")).Text);
@@ -261,12 +261,12 @@ namespace MusicTest
 
             // Act
             browser.FindElement(By.CssSelector("[aria-label='Vis detaljer om lowkey']")).Click();
-            wait.Until(driver => driver.FindElement(By.CssSelector("dialog")).Displayed);
+            wait.Until(driver => driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
             browser.SwitchTo().ActiveElement().SendKeys(Keys.Escape);
-            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog")).Displayed);
+            wait.Until(driver => !driver.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
 
             // Assert
-            Assert.False(browser.FindElement(By.CssSelector("dialog")).Displayed);
+            Assert.False(browser.FindElement(By.CssSelector("dialog[aria-labelledby='dialog-title']")).Displayed);
         }
 
         [Fact]
@@ -278,7 +278,7 @@ namespace MusicTest
             browser.ExecuteCdpCommand("Network.enable", new Dictionary<string, object?>());
             browser.ExecuteCdpCommand("Network.setBlockedURLs", new Dictionary<string, object?>
             {
-                ["urls"] = new[] { "*azurewebsites.net/api/Collection*" }
+                ["urls"] = new[] { (Environment.GetEnvironmentVariable("FRONTMUSIC_TEST_API_URL") ?? "*azurewebsites.net/api/Collection") + "*" }
             });
 
             // Act: API-kaldet fejler, fordi browseren midlertidigt blokerer det.
@@ -328,15 +328,39 @@ namespace MusicTest
             var options = new ChromeOptions();
             options.AddArgument("--headless=new"); // Fjern linjen for at se Chrome under testen.
             options.AddArgument("--window-size=1440,1200");
-            return new ChromeDriver(options);
+            options.SetLoggingPreference(LogType.Browser, LogLevel.Severe);
+            var browser = new ChromeDriver(options);
+            // Ved lokal integrationstest kan den nye API-version vælges uden at ændre Azure.
+            string? testApi = Environment.GetEnvironmentVariable("FRONTMUSIC_TEST_API_URL");
+            if (!string.IsNullOrWhiteSpace(testApi))
+            {
+                browser.ExecuteCdpCommand("Page.addScriptToEvaluateOnNewDocument", new Dictionary<string, object?>
+                {
+                    ["source"] = "window.FRONTMUSIC_API_URL = " + System.Text.Json.JsonSerializer.Serialize(testApi) + ";"
+                });
+            }
+            return browser;
         }
 
         private static WebDriverWait AabnFrontend(IWebDriver browser)
         {
             browser.Navigate().GoToUrl(FrontendUrl);
+            foreach (var entry in browser.Manage().Logs.GetLog(LogType.Browser))
+            {
+                Console.WriteLine(entry.Message);
+            }
             var wait = new WebDriverWait(browser, TimeSpan.FromSeconds(30));
             wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
-            VentPaaMusikken(wait);
+            try
+            {
+                VentPaaMusikken(wait);
+            }
+            catch (WebDriverTimeoutException)
+            {
+                string? diagnostic = ((IJavaScriptExecutor)browser).ExecuteScript(
+                    "return JSON.stringify({override:window.FRONTMUSIC_API_URL, api:typeof apiUrl === 'undefined' ? null : apiUrl, vue:typeof Vue, tekst:document.body.innerText});")?.ToString();
+                throw new WebDriverTimeoutException("Frontend blev ikke klar: " + diagnostic);
+            }
             return wait;
         }
 

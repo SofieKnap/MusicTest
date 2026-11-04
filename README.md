@@ -42,3 +42,15 @@ Chrome kører uden et synligt vindue (`--headless=new`). Fjern den linje i `Opre
 - **Siden kan ikke åbnes:** Start Live Server på port 5500.
 - **Timeout, før musikken vises:** Kontrollér internetforbindelsen, Azure-API'et og browserens Console. Vue og Axios hentes også fra internettet.
 - **Chrome starter ikke:** Læs fejlen i Test Explorer. Selenium kan have brug for at hente en passende ChromeDriver ved første kørsel.
+
+## Test mod en lokal API-version
+
+Når frontend og backend ændres sammen, kan Selenium vælge en lokal API uden at ændre den publicerede Azure-app:
+
+```powershell
+$env:FRONTMUSIC_TEST_API_URL = 'http://127.0.0.1:5217/api/Collection'
+dotnet test MusicTest.slnx
+Remove-Item Env:FRONTMUSIC_TEST_API_URL
+```
+
+Den valgte lokale API skal køre, og Live Server skal stadig være startet på port 5500. Uden denne indstilling bruger tests den API-adresse, som står i frontendens index.js. Id-udgaven kræver den opdaterede backend med unikke, positive id'er.
